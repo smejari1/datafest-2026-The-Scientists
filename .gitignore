@@ -17,3 +17,7 @@ dist/
 # Local env files
 .env
 .env.*
+
+# ignore data files
+data/
+output/
