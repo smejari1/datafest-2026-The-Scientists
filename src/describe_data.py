@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-from utils import find_csv_files, load_csv_safe, save_json, save_text
-from config import DATA_FOLDER, DESCRIPTION_FOLDER, SAMPLE_ROWS
+from src.utils import find_csv_files, load_csv_safe, save_json, save_text
+from src.config import DATA_FOLDER, DESCRIPTION_FOLDER, SAMPLE_ROWS
 
 
 def describe_dataframe(df, filename):
@@ -75,11 +75,16 @@ def generate_background(descriptions, shared_columns):
 def run_description():
     csv_files = find_csv_files(DATA_FOLDER)
     descriptions = {}
+    datasets = {}
+
+    print(f"Found {len(csv_files)} dataset(s) for description.")
 
     for filepath in csv_files:
         filename = os.path.basename(filepath)
+        print(f"  - Profiling {filename}...")
         df = load_csv_safe(filepath)
         if df is not None:
+            datasets[filename] = df
             descriptions[filename] = describe_dataframe(df, filename)
 
     shared_columns = compare_datasets(descriptions)
@@ -89,4 +94,4 @@ def run_description():
     save_json(shared_columns, f"{DESCRIPTION_FOLDER}/dataset_relationships.json")
     save_text(background_report, f"{DESCRIPTION_FOLDER}/dataset_background.md")
 
-    return descriptions, shared_columns
+    return descriptions, datasets, shared_columns

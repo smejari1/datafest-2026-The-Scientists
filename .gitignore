@@ -21,3 +21,4 @@ dist/
 # ignore data files
 data/
 output/
+research_output/

@@ -1,8 +1,8 @@
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
-from utils import find_csv_files, load_csv_safe, save_json, save_text
-from config import DATA_FOLDER, ANALYSIS_FOLDER, GRAPHS_FOLDER
+from src.utils import find_csv_files, load_csv_safe, save_json, save_text
+from src.config import DATA_FOLDER, ANALYSIS_FOLDER, GRAPHS_FOLDER
 
 
 def analyze_dataframe(df, filename):
@@ -56,16 +56,26 @@ def generate_analysis_report(results):
     return "\n".join(lines)
 
 
-def run_analysis():
-    csv_files = find_csv_files(DATA_FOLDER)
+def run_analysis(datasets=None):
     analysis_results = {}
 
-    for filepath in csv_files:
-        filename = os.path.basename(filepath)
-        df = load_csv_safe(filepath)
-        if df is not None:
-            analysis_results[filename] = analyze_dataframe(df, filename)
-            create_graphs(df, filename)
+    if datasets is None:
+        csv_files = find_csv_files(DATA_FOLDER)
+        print(f"Analyzing {len(csv_files)} dataset file(s)...")
+        for filepath in csv_files:
+            filename = os.path.basename(filepath)
+            print(f"  - Analyzing {filename}...")
+            df = load_csv_safe(filepath)
+            if df is not None:
+                analysis_results[filename] = analyze_dataframe(df, filename)
+                create_graphs(df, filename)
+    else:
+        print(f"Analyzing {len(datasets)} in-memory dataset(s)...")
+        for filename, df in datasets.items():
+            if df is not None:
+                print(f"  - Analyzing {filename}...")
+                analysis_results[filename] = analyze_dataframe(df, filename)
+                create_graphs(df, filename)
 
     report = generate_analysis_report(analysis_results)
     save_json(analysis_results, f"{ANALYSIS_FOLDER}/analysis_results.json")
