@@ -1,0 +1,141 @@
+DataFest 2026 - Methods Used (Code-Based Summary)
+Date: 2026-03-29
+
+Overview
+This project uses a multi-step analytics pipeline to profile datasets, discover relationships,
+run likelihood modeling, and answer five research questions (RQ1-RQ5) on SDOH and utilization.
+
+Primary Libraries and Tools
+- pandas: data loading, joins, groupby aggregations, pivot tables, missing-value checks, summary stats
+- numpy: numeric arrays and helper calculations
+- scipy (scipy.stats): Fisher's exact test for 2x2 comparisons (RQ1)
+- scikit-learn:
+  - train_test_split
+  - Pipeline and ColumnTransformer
+  - SimpleImputer (median for numeric, most_frequent for categorical)
+  - OneHotEncoder(handle_unknown='ignore')
+  - LogisticRegression(max_iter=1000)
+  - classification_report for model evaluation metrics
+- matplotlib and seaborn: static visualizations (histograms, bars, scatter, heatmaps, line charts)
+- plotly: listed dependency (not heavily used in current core scripts)
+- openpyxl: listed dependency for Excel interoperability
+- requests: listed dependency for HTTP access if needed
+- jupyterlab, ipykernel: notebook-based workflow support
+- folium (optional import in RQ3): interactive map output if installed
+
+Core Pipeline Methods
+1) Dataset profiling (src/describe_data.py)
+- Row/column counts, column names and dtypes
+- Missing-value counts per column
+- Duplicate-row counts
+- Sample-row extraction for inspection
+- Cross-dataset overlap detection via shared column names
+
+2) Descriptive trend analysis (src/analyze_trends.py)
+- Numeric/categorical field detection by dtype
+- Descriptive statistics via DataFrame.describe() for numeric columns
+- Histogram generation for up to first 3 numeric columns per dataset
+
+3) Automated relationship discovery (src/discover_relationships.py)
+Column role classification and filtering:
+- Roles: identifier, binary, categorical, numeric_discrete, numeric_continuous, year_like/time_like, text
+- Excludes low-quality columns from comparisons:
+  - high missingness (>60%)
+  - no variation
+  - identifier-like columns
+  - high-cardinality free-text columns
+
+Pairwise relationship methods:
+- Numeric vs Numeric:
+  - Pearson correlation
+  - retained when |r| >= 0.15
+- Categorical vs Numeric:
+  - compares group means
+  - effect metric: normalized mean difference = |max_mean - min_mean| / global_std
+  - retained when normalized difference >= 0.10
+- Categorical vs Binary:
+  - computes group event rates
+  - effect metric: rate difference
+  - retained when |rate difference| >= 0.05
+- Binary vs Numeric:
+  - compares numeric means between binary classes
+  - effect metric: normalized mean difference
+  - retained when normalized difference >= 0.10
+- Time vs Numeric:
+  - correlation between time (year or parsed datetime ordinal) and numeric values
+  - retained when |correlation| >= 0.15
+
+4) Likelihood modeling (src/model_likelihoods.py)
+Feature engineering:
+- birth_year -> age
+- age -> age_group bins: [0-18, 19-25, 26-35, 36-50, 51-65, 66+]
+- income -> low_income flag (below dataset median income)
+- employment_status -> unemployed flag
+- insurance_status -> no_health_insurance flag
+- SDOH indicators standardized to numeric and aggregated into:
+  - social_determinant_score (sum)
+  - high_social_determinant_burden (score >= 2)
+- Text target normalization for common yes/no, true/false, positive/negative labels
+
+Modeling procedure:
+- Binary target auto-detection from candidate names or binary-like columns
+- Feature selection from relationship outputs + default candidate variables
+- Filters out weak features:
+  - >=80% missing
+  - <=1 unique value
+  - ID-like fields
+  - extreme-cardinality object fields (>40 unique)
+- Train/test split:
+  - default test_size = 0.2 (or 0.3 for small samples)
+  - random_state = 42
+  - stratified split when possible
+- Model: logistic regression classification pipeline
+- Evaluation: classification_report metrics (accuracy, precision, recall, F1)
+- Also computes observed group rates (% positive) by a selected grouping variable
+
+Research Question Methods (src/questions.py)
+RQ1: SDOH burden and ED utilization
+- Patient-level aggregation of encounters and ED outcomes
+- Domain-level screened vs not screened comparisons
+- Fisher's exact test for statistical significance (p < 0.05)
+- Odds ratio calculation from screened vs not-screened ED rates
+
+RQ2: High-utilizer phenotyping
+- High-utilizer definition: top decile (>= 90th percentile) of encounter counts
+- Descriptive comparisons of SDOH domain counts and any-screening rates
+- Diagnosis prevalence analysis among high utilizers
+
+RQ3: Geography x SDOH overlap
+- Census tract aggregation:
+  - total encounters
+  - SDOH-screened encounters
+  - ED visits
+- Derived rates:
+  - SDOH screening rate (%)
+  - ED visit rate (%)
+- Underscreened tract identification:
+  - below-median screening rate and above-median encounter volume
+- Optional interactive tract map (folium) using lat/lon
+
+RQ4: Diagnosis group x social needs
+- Encounter-diagnosis-SDOH merge
+- Co-occurrence counts for diagnosis group x SDOH domain
+- Row-normalized percentages by diagnosis group
+- Heatmap of diagnosis-domain prevalence
+- Top SDOH domain per diagnosis group
+
+RQ5: Temporal SDOH screening trends
+- Annual (2020-2026) screening volume by domain
+- Overall annual screen rate = screened encounters / total encounters
+- Year-over-year growth (%) per domain using pct_change
+
+Outputs Produced
+- JSON artifacts for structured results (descriptions, relationships, analysis, model outputs)
+- Markdown narrative reports for interpretation
+- CSV tables for research-question outputs
+- PNG figures and optional interactive HTML map
+
+Interpretation Guardrails in Code
+- Findings are treated as associations, not causation.
+- Automatic thresholds are used to reduce weak/noisy comparisons.
+- Minimum group/sample checks are applied in several analyses to reduce unstable estimates.

@@ -13,7 +13,6 @@ from scipy import stats
 
 warnings.filterwarnings("ignore")
 
-# ── Plot style ──────────────────────────────────────────────────────────────
 plt.rcParams.update({
     "figure.dpi": 150,
     "figure.facecolor": "white",
@@ -32,7 +31,41 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = BASE_DIR / "data"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "research_output"
 
-# ── Helpers ─────────────────────────────────────────────────────────────────
+# Load only columns needed by downstream analysis to reduce memory pressure.
+REQUIRED_COLUMNS = {
+    "encounters.csv": [
+        "patientdurablekey",
+        "encounterkey",
+        "isedvisit",
+        "ishospitaladmission",
+        "isinpatientadmission",
+        "isobservation",
+        "primarydiagnosiskey",
+        "departmentkey",
+        "admityear",
+    ],
+    "social_determinants.csv": [
+        "patientdurablekey",
+        "domain",
+        "answertext",
+        "encounterkey",
+    ],
+    "diagnosis.csv": [
+        "diagnosiskey",
+        "groupname",
+    ],
+    "departments.csv": [
+        "departmentkey",
+        "censustract",
+        "departmenttype",
+    ],
+    "tigercensuscodes.csv": [
+        "geoid",
+        "centlat",
+        "centlon",
+    ],
+}
+
 def load(data_dir: str, name: str) -> pd.DataFrame:
     requested_path = Path(data_dir) / name
     candidates = [
@@ -54,7 +87,51 @@ def load(data_dir: str, name: str) -> pd.DataFrame:
         )
 
     print(f"  Loading {name} from {resolved_path}...")
-    df = pd.read_csv(resolved_path, low_memory=False)
+
+    needed = [c.lower() for c in REQUIRED_COLUMNS.get(name.lower(), [])]
+
+    def _read_csv(path: Path, usecols=None, nrows=None) -> pd.DataFrame:
+        # With usecols, prefer Python engine first to avoid occasional pandas C-engine index bugs.
+        if usecols is not None:
+            attempts = [
+                {"engine": "python", "on_bad_lines": "skip"},
+                {"engine": "c", "low_memory": True},
+            ]
+        else:
+            attempts = [
+                {"engine": "c", "low_memory": True},
+                {"engine": "python", "on_bad_lines": "skip"},
+            ]
+        encodings = ["utf-8", "latin1", "cp1252"]
+
+        last_err = None
+        for encoding in encodings:
+            for opts in attempts:
+                try:
+                    return pd.read_csv(path, encoding=encoding, usecols=usecols, nrows=nrows, **opts)
+                except (pd.errors.ParserError, MemoryError, UnicodeDecodeError, ValueError, OSError, IndexError) as err:
+                    last_err = err
+
+        raise last_err if last_err else RuntimeError(f"Failed to read CSV: {path}")
+
+    header_df = _read_csv(resolved_path, usecols=None, nrows=0)
+    original_cols = [str(c).strip() for c in header_df.columns]
+    norm_to_original = {}
+    for col in original_cols:
+        norm_to_original.setdefault(col.lower(), col)
+
+    if needed:
+        selected_norm = [col for col in needed if col in norm_to_original]
+        selected = [norm_to_original[col] for col in selected_norm]
+        missing = sorted(set(needed) - set(selected_norm))
+        if missing:
+            print(f"    Warning: {name} missing expected column(s): {', '.join(missing)}")
+        if not selected:
+            raise ValueError(f"No required columns found in {name}.")
+        df = _read_csv(resolved_path, usecols=selected)
+    else:
+        df = _read_csv(resolved_path, usecols=None)
+
     df.columns = df.columns.str.strip().str.lower()
     return df
 
@@ -76,28 +153,21 @@ def save_csv(df: pd.DataFrame, output_dir: str, subfolder: str, fname: str):
     print(f"    Saved → {path}")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# RQ1 — SDOH burden and ED utilization
-# ════════════════════════════════════════════════════════════════════════════
 def rq1_sdoh_ed_utilization(enc: pd.DataFrame, sdoh: pd.DataFrame, output_dir: str):
     print("\n[RQ1] SDOH burden and ED utilization")
     folder = "rq1_sdoh_ed"
 
-    # ── Build patient-level feature table ───────────────────────────────────
-    # SDOH: pivot so each domain is a flag per patient
     sdoh_clean = sdoh[["patientdurablekey", "domain", "answertext"]].dropna(subset=["domain"])
     sdoh_clean["domain"] = sdoh_clean["domain"].str.strip()
 
-    # Flag: screened for this domain (regardless of answer)
     domain_pivot = (
         sdoh_clean.groupby(["patientdurablekey", "domain"])
         .size().unstack(fill_value=0)
-        .clip(upper=1)  # binary: screened yes/no
+        .clip(upper=1)
         .add_prefix("screened_")
     )
     domain_pivot.columns = domain_pivot.columns.str.replace(" ", "_").str.lower()
 
-    # Patient-level encounter summary
     patient_enc = (
         enc.groupby("patientdurablekey")
         .agg(
@@ -114,7 +184,6 @@ def rq1_sdoh_ed_utilization(enc: pd.DataFrame, sdoh: pd.DataFrame, output_dir: s
     pt = patient_enc.merge(domain_pivot, on="patientdurablekey", how="inner")
     print(f"  Patients with both encounters + SDOH: {len(pt):,}")
 
-    # ── Analysis: ED visit rate by SDOH domain ───────────────────────────────
     screened_cols = [c for c in pt.columns if c.startswith("screened_")]
     domain_labels = [c.replace("screened_", "").replace("_", " ").title() for c in screened_cols]
 
@@ -162,8 +231,6 @@ def rq1_sdoh_ed_utilization(enc: pd.DataFrame, sdoh: pd.DataFrame, output_dir: s
     plt.tight_layout()
     save_fig(output_dir, folder, "rq1_ed_rate_by_domain.png")
 
-    # ── Logistic regression summary (simple, no sklearn needed) ─────────────
-    # Just report OR = (rate_s / (1-rate_s)) / (rate_ns / (1-rate_ns))
     rq1_df["odds_ratio"] = rq1_df.apply(
         lambda r: round(
             (r["ed_rate_screened"] / 100 / (1 - r["ed_rate_screened"] / 100 + 1e-9))
@@ -176,14 +243,10 @@ def rq1_sdoh_ed_utilization(enc: pd.DataFrame, sdoh: pd.DataFrame, output_dir: s
     print(f"  Top domain by OR: {rq1_df.iloc[0]['domain']} (OR={rq1_df.iloc[0]['odds_ratio']})")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# RQ2 — High-utilizer phenotyping
-# ════════════════════════════════════════════════════════════════════════════
 def rq2_high_utilizers(enc: pd.DataFrame, sdoh: pd.DataFrame, diag: pd.DataFrame, output_dir: str):
     print("\n[RQ2] High-utilizer phenotyping")
     folder = "rq2_high_utilizers"
 
-    # ── Classify patients ────────────────────────────────────────────────────
     pt_counts = enc.groupby("patientdurablekey")["encounterkey"].count().reset_index()
     pt_counts.columns = ["patientdurablekey", "encounter_count"]
     THRESHOLD = pt_counts["encounter_count"].quantile(0.90)
@@ -191,7 +254,6 @@ def rq2_high_utilizers(enc: pd.DataFrame, sdoh: pd.DataFrame, diag: pd.DataFrame
     print(f"  High-utilizer threshold (90th pct): {THRESHOLD:.0f} encounters")
     print(f"  High utilizers: {pt_counts['is_high_utilizer'].sum():,}")
 
-    # Distribution plot
     fig, ax = plt.subplots(figsize=(9, 4))
     data = pt_counts["encounter_count"].clip(upper=200)
     ax.hist(data, bins=80, color=ACCENT, alpha=0.8, edgecolor="white", linewidth=0.3)
@@ -203,7 +265,6 @@ def rq2_high_utilizers(enc: pd.DataFrame, sdoh: pd.DataFrame, diag: pd.DataFrame
     plt.tight_layout()
     save_fig(output_dir, folder, "rq2_encounter_distribution.png")
 
-    # ── SDOH domains by utilizer tier ────────────────────────────────────────
     sdoh_agg = (
         sdoh.groupby("patientdurablekey")["domain"]
         .apply(lambda x: list(x.dropna().unique()))
@@ -231,7 +292,7 @@ def rq2_high_utilizers(enc: pd.DataFrame, sdoh: pd.DataFrame, diag: pd.DataFrame
     plt.tight_layout()
     save_fig(output_dir, folder, "rq2_sdoh_by_utilizer_tier.png")
 
-    # ── Top diagnoses for high utilizers ────────────────────────────────────
+
     high_pt_keys = pt_counts[pt_counts["is_high_utilizer"] == 1]["patientdurablekey"]
     high_enc = enc[enc["patientdurablekey"].isin(high_pt_keys)].copy()
 
@@ -320,15 +381,16 @@ def rq3_geography_sdoh(enc: pd.DataFrame, sdoh: pd.DataFrame, dept: pd.DataFrame
     # ── Scatter: volume vs SDOH screen rate ─────────────────────────────────
     plot_df = geo_df[geo_df["total_encounters"] >= 50].copy()
     fig, ax = plt.subplots(figsize=(9, 5))
+    ax.set_facecolor("#f3f6fb")
     sc = ax.scatter(
         plot_df["total_encounters"],
         plot_df["sdoh_screen_rate"],
         c=plot_df["ed_rate"],
-        cmap="YlOrRd",
-        alpha=0.7,
-        edgecolors="white",
-        linewidths=0.4,
-        s=60,
+        cmap="viridis",
+        alpha=0.9,
+        edgecolors="#1f2937",
+        linewidths=0.5,
+        s=75,
     )
     cbar = fig.colorbar(sc, ax=ax)
     cbar.set_label("ED visit rate (%)")
