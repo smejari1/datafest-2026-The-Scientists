@@ -61,7 +61,7 @@ Important notes:
 - `output/` and `research_output/` are also Git-ignored and are generated locally when analyses run.
 - The main exploratory pipeline scans all `*.csv` files directly inside `data/`.
 
-For the research-question workflow in [`src/questions.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/questions.py), the code is especially oriented around these files when available:
+For the research-question workflow in `src/questions.py`, the code is especially oriented around these files when available:
 
 - `encounters.csv`
 - `social_determinants.csv`
@@ -96,7 +96,7 @@ python -c "import pandas, numpy, matplotlib, scipy, sklearn, seaborn, plotly, op
 
 ## Dependencies
 
-Core libraries from [`requirements.txt`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/requirements.txt):
+Core libraries from `requirements.txt`:
 
 - `pandas`
 - `numpy`
@@ -114,7 +114,7 @@ The research-question workflow also optionally uses `folium` for interactive map
 
 ## Main Exploratory Pipeline
 
-The primary entry point is [`main.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/main.py).
+The primary entry point is `main.py`.
 
 Run it from the repository root:
 
@@ -126,7 +126,7 @@ python main.py
 
 #### 1. Dataset Description
 
-Implemented in [`src/describe_data.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/describe_data.py).
+Implemented in `src/describe_data.py`.
 
 This stage:
 
@@ -138,7 +138,7 @@ This stage:
 
 #### 2. Trend Analysis and Graphing
 
-Implemented in [`src/analyze_trends.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/analyze_trends.py).
+Implemented in `src/analyze_trends.py`.
 
 This stage:
 
@@ -149,7 +149,7 @@ This stage:
 
 #### 3. Automated Relationship Discovery
 
-Implemented in [`src/discover_relationships.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/discover_relationships.py).
+Implemented in `src/discover_relationships.py`.
 
 This stage:
 
@@ -168,7 +168,7 @@ Relationship types currently supported include:
 
 #### 4. Likelihood Modeling
 
-Implemented in [`src/model_likelihoods.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/model_likelihoods.py).
+Implemented in `src/model_likelihoods.py`.
 
 This stage:
 
@@ -201,7 +201,7 @@ Likely target columns include:
 
 #### 5. Final Summary
 
-Implemented in [`src/summarize_results.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/summarize_results.py).
+Implemented in `src/summarize_results.py`.
 
 This stage combines the major outputs into a single Markdown summary describing:
 
@@ -237,7 +237,7 @@ output/
 
 ## Research Questions Workflow
 
-The project also contains a more targeted analysis script in [`src/questions.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/questions.py).
+The project also contains a more targeted analysis script in `src/questions.py`.
 
 This workflow is aimed at five research questions:
 
@@ -279,7 +279,7 @@ Tracks screening volume and screening rates over time, including year-over-year 
 
 ## Configuration
 
-Key configuration lives in [`src/config.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/config.py).
+Key configuration lives in `src/config.py`.
 
 Important configurable values include:
 
@@ -320,11 +320,11 @@ If you want to tune sensitivity or reporting behavior, `config.py` is the first 
 
 ## Useful Files to Read First
 
-- [`main.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/main.py): top-level entry point for the general pipeline
-- [`src/config.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/config.py): paths, thresholds, and defaults
-- [`src/questions.py`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/src/questions.py): research-question analysis workflow
-- [`methods_used.txt`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/methods_used.txt): concise methods summary
-- [`SETUP.md`](/Users/nidhikonanur/Documents/Playground/datafest-2026-The-Scientists-main/SETUP.md): environment setup instructions
+- `main.py`: top-level entry point for the general pipeline
+- `src/config.py`: paths, thresholds, and defaults
+- `src/questions.py`: research-question analysis workflow
+- `methods_used.txt`: concise methods summary
+- `SETUP.md`: environment setup instructions
 
 ## Future Improvements
 
